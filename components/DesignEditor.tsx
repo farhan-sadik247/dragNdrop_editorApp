@@ -1,5 +1,4 @@
 "use client"
-
 import * as ImagePicker from "expo-image-picker"
 import * as MediaLibrary from "expo-media-library"
 import { useRef, useState } from "react"
@@ -610,12 +609,22 @@ function DraggableElement({
     const translateY = useSharedValue(element.y)
     const scale = useSharedValue(element.scale || 1)
 
+    const lastTap = useRef<number>(0);
+
     const panGesture = Gesture.Pan()
         .onBegin(() => {
-            runOnJS(onSelect)()
-            runOnJS(onShowEdit)() 
+            const now = Date.now();
+            const timeDiff = now - lastTap.current;
+            
+            runOnJS(onSelect)();
+            
+            // Check for double tap (within 300ms)
+            if (timeDiff < 300) {
+                runOnJS(onShowEdit)();
+            }
+            
+            lastTap.current = now;
         })
-
         .onUpdate((event) => {
             translateX.value = event.translationX + element.x
             translateY.value = event.translationY + element.y
@@ -630,9 +639,8 @@ function DraggableElement({
     const pinchGesture = Gesture.Pinch()
         .onBegin(() => {
             runOnJS(onSelect)()
-            runOnJS(onShowEdit)()
+            // Remove onShowEdit from pinch gesture
         })
-
         .onUpdate((event) => {
             scale.value = (element.scale || 1) * event.scale
         })
