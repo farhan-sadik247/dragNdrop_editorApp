@@ -116,7 +116,7 @@ The app will automatically request these permissions:
 ---
 
 ## 📦 Download the App  
-➡️ [Click here to download the Mini Design Editor App](https://tinyurl.com/dragNdropApp)
+➡️ [Click here to download the Mini Design Editor App](https://tinyurl.com/DragNDrop2)
 
 ---
 
