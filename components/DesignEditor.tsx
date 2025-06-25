@@ -31,9 +31,27 @@ interface CanvasElement {
     uri?: string
     shapeType?: "circle" | "triangle" | "rectangle" | "star" | "hexagon"
     shapeColor?: string
+    fontWeight?: string
+    fontStyle?: string
+    textAlign?: "left" | "center" | "right"
+    fontFamily?: string
 }
 
+
 export default function DesignEditor() {
+
+    const [showAspectModal, setShowAspectModal] = useState(false);
+    const [selectedAspect, setSelectedAspect] = useState<[number, number] | null>([1, 1]);
+
+    const [textStyleType, setTextStyleType] = useState<"heading" | "subtitle">("heading");
+    const [textColor, setTextColor] = useState("#000000");
+    const [isBold, setIsBold] = useState(false);
+    const [isItalic, setIsItalic] = useState(false);
+    const [textAlign, setTextAlign] = useState<"left" | "center" | "right">("center");
+    const [fontFamily, setFontFamily] = useState("System"); // fallback: system font
+
+    const [showEditModal, setShowEditModal] = useState(false);
+
     const [canvasElements, setCanvasElements] = useState<CanvasElement[]>([])
     const [selectedElement, setSelectedElement] = useState<string | null>(null)
     const [showTextModal, setShowTextModal] = useState(false)
@@ -47,23 +65,38 @@ export default function DesignEditor() {
         setShowTextModal(true)
     }
 
+
     const confirmAddText = () => {
         const newTextElement: CanvasElement = {
             id: Date.now().toString(),
             type: "text",
-            text: textInput || "Sample Text",
-            x: CANVAS_WIDTH / 2 - 50,
-            y: CANVAS_HEIGHT / 2 - 20,
-            fontSize: 24,
-            color: "#333333",
+            text: textInput || (textStyleType === "heading" ? "Heading" : "Subtitle"),
+            x: CANVAS_WIDTH / 2 - 75,
+            y: CANVAS_HEIGHT / 2 - 25,
+            fontSize: textStyleType === "heading" ? 28 : 20,
+            color: textColor,
             scale: 1,
             rotation: 0,
-        }
+            fontWeight: isBold ? "bold" : "normal",
+            fontStyle: isItalic ? "italic" : "normal",
+            textAlign,
+            fontFamily,
+        };
 
-        setCanvasElements((prev) => [...prev, newTextElement])
-        setShowTextModal(false)
-        setTextInput("")
-    }
+        setCanvasElements((prev) => [...prev, newTextElement]);
+
+        // reset state
+        setShowTextModal(false);
+        setTextInput("");
+        setTextStyleType("heading");
+        setTextColor("#000000");
+        setIsBold(false);
+        setIsItalic(false);
+        setTextAlign("center");
+        setFontFamily("System");
+    };
+
+
 
 
     const addShapeToCanvas = () => {
@@ -93,41 +126,50 @@ export default function DesignEditor() {
     }
 
 
-    const addImageToCanvas = async () => {
+    const addImageToCanvas = () => {
+        setShowAspectModal(true);
+        };
+
+        const pickImageWithAspect = async (aspect: [number, number] | null) => {
         try {
-            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
+            setShowAspectModal(false);
+
+            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
             if (status !== "granted") {
-                Alert.alert("Permission needed", "Please grant camera roll permissions to add images.")
-                return
+            Alert.alert("Permission needed", "Please grant camera roll permissions to add images.");
+            return;
             }
 
             const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ["images"],
-                allowsEditing: true,
-                aspect: [1, 1],
-                quality: 0.8,
-            })
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: aspect !== null, // only allow crop when aspect is selected
+            aspect: aspect || undefined,
+            quality: 1,
+            });
 
-            if (!result.canceled && result.assets[0]) {
-                const newImageElement: CanvasElement = {
-                    id: Date.now().toString(),
-                    type: "image",
-                    uri: result.assets[0].uri,
-                    x: CANVAS_WIDTH / 2 - 75,
-                    y: CANVAS_HEIGHT / 2 - 75,
-                    width: 150,
-                    height: 150,
-                    scale: 1,
-                    rotation: 0,
-                }
+            if (!result.canceled && result.assets && result.assets.length > 0) {
+            const newImageElement: CanvasElement = {
+                id: Date.now().toString(),
+                type: "image",
+                uri: result.assets[0].uri,
+                x: CANVAS_WIDTH / 2 - 75,
+                y: CANVAS_HEIGHT / 2 - 75,
+                width: 150,
+                height: 150,
+                scale: 1,
+                rotation: 0,
+            };
 
-                setCanvasElements((prev) => [...prev, newImageElement])
-                Alert.alert("Image Added", "Image has been added to canvas!")
+            setCanvasElements((prev) => [...prev, newImageElement]);
+            Alert.alert("Image Added", "Image has been added to canvas!");
             }
         } catch (error) {
-            Alert.alert("Error", "Failed to pick image")
+            Alert.alert("Error", "Failed to pick image");
         }
-    }
+        };
+
+
+
 
     const exportCanvas = async () => {
         try {
@@ -188,6 +230,7 @@ export default function DesignEditor() {
                             element={element}
                             isSelected={selectedElement === element.id}
                             onSelect={() => setSelectedElement(element.id)}
+                            onShowEdit={() => setShowEditModal(true)}
                             onUpdate={(updatedElement) => {
                                 setCanvasElements((prev) =>
                                     prev.map((el) => (el.id === element.id ? { ...el, ...updatedElement } : el)),
@@ -224,12 +267,113 @@ export default function DesignEditor() {
                     </View>
                 </View>
             </SafeAreaView>
+            <View style={styles.footer}>
+            <Text style={styles.footerText}>© 2025 Md. Farhan Sadik. All rights reserved.</Text>
+            </View>
 
             {/* Text Input Modal */}
             <Modal visible={showTextModal} transparent animationType="slide">
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>Enter Text</Text>
+                        <Text style={styles.modalTitle}>Add Text</Text>
+
+                        {/* Text Style Selector */}
+                        <View style={{ flexDirection: "row", justifyContent: "space-around", marginBottom: 10 }}>
+                            <TouchableOpacity
+                                style={[styles.textStyleButton, textStyleType === "heading" && styles.textStyleButtonActive]}
+                                onPress={() => setTextStyleType("heading")}
+                            >
+                                <Text style={[
+                                    styles.textStyleText,
+                                    textStyleType === "heading" && { color: "#fff" }
+                                ]}>Heading</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.textStyleButton, textStyleType === "subtitle" && styles.textStyleButtonActive]}
+                                onPress={() => setTextStyleType("subtitle")}
+                            >
+                                <Text style={[
+                                    styles.textStyleText,
+                                    textStyleType === "subtitle" && { color: "#fff" }
+                                ]}>Subtitle</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* Color Picker */}
+                        <Text style={{ marginBottom: 6, fontWeight: "600", color: "#333" }}>Choose Text Color:</Text>
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 10 }}>
+                            {["#000000", "#FFFFFF", "#FF3B30", "#007AFF", "#34C759", "#FF9500"].map((color) => (
+                                <TouchableOpacity
+                                    key={color}
+                                    onPress={() => setTextColor(color)}
+                                    style={{
+                                        backgroundColor: color,
+                                        width: 32,
+                                        height: 32,
+                                        borderRadius: 16,
+                                        borderWidth: textColor === color ? 3 : 1,
+                                        borderColor: textColor === color ? "#444" : "#ccc",
+                                    }}
+                                />
+                            ))}
+                        </View>
+
+                        {/* Text Alignment Selector */}
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 10 }}>
+                            <TouchableOpacity
+                                style={[styles.toggleButton, isBold && styles.toggleButtonActive]}
+                                onPress={() => setIsBold(!isBold)}
+                            >
+                                <Text style={[styles.toggleButtonText, isBold && { color: "#fff" }]}>B</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.toggleButton, isItalic && styles.toggleButtonActive]}
+                                onPress={() => setIsItalic(!isItalic)}
+                            >
+                                <Text style={[styles.toggleButtonText, isItalic && { color: "#fff", fontStyle: "italic" }]}>I</Text>
+                            </TouchableOpacity>
+                        </View>
+                        
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 10 }}>
+                            {["left", "center", "right"].map((align) => (
+                                <TouchableOpacity
+                                    key={align}
+                                    style={[styles.toggleButton, textAlign === align && styles.toggleButtonActive]}
+                                    onPress={() => setTextAlign(align as "left" | "center" | "right")}
+                                >
+                                    <Text style={[
+                                        styles.toggleButtonText,
+                                        textAlign === align && { color: "#fff" }
+                                    ]}>{align.toUpperCase()}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
+                        {/* Font Family Selector */}
+                        <View style={{ marginBottom: 10 }}>
+                            <Text style={{ fontWeight: "600", marginBottom: 4 }}>Font Family:</Text>
+                            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+                                {["System", "sans-serif", "serif", "monospace"].map((font) => (
+                                    <TouchableOpacity
+                                        key={font}
+                                        onPress={() => setFontFamily(font)}
+                                        style={[styles.fontFamilyButton, fontFamily === font && styles.fontFamilyButtonActive]}
+                                    >
+                                        <Text style={{
+                                            fontFamily: font,
+                                            color: fontFamily === font ? "#fff" : "#000",
+                                            fontSize: 14,
+                                        }}>
+                                            {font}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        </View>
+
+
+
+                        {/* Text Input */}
                         <TextInput
                             style={styles.textInput}
                             value={textInput}
@@ -238,17 +382,147 @@ export default function DesignEditor() {
                             multiline
                             autoFocus
                         />
+
+                        {/* Buttons */}
                         <View style={styles.modalButtons}>
                             <TouchableOpacity style={styles.modalButton} onPress={() => setShowTextModal(false)}>
                                 <Text style={styles.modalButtonText}>Cancel</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity style={[styles.modalButton, styles.confirmButton]} onPress={confirmAddText}>
+                            <TouchableOpacity
+                                style={[styles.modalButton, styles.confirmButton]}
+                                onPress={confirmAddText}
+                            >
                                 <Text style={[styles.modalButtonText, styles.confirmButtonText]}>Add Text</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
                 </View>
             </Modal>
+
+
+            {/* Aspect Ratio Selection Modal */}
+            <Modal visible={showAspectModal} transparent animationType="fade">
+            <View style={styles.modalOverlay}>
+                <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Select Crop Ratio</Text>
+                <View style={styles.aspectGrid}>
+                    <TouchableOpacity style={styles.aspectOption} onPress={() => pickImageWithAspect([1, 1])}>
+                    <Text style={styles.aspectText}>1:1</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.aspectOption} onPress={() => pickImageWithAspect([4, 3])}>
+                    <Text style={styles.aspectText}>4:3</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.aspectOption} onPress={() => pickImageWithAspect([16, 9])}>
+                    <Text style={styles.aspectText}>16:9</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.aspectOption} onPress={() => pickImageWithAspect([3, 2])}>
+                    <Text style={styles.aspectText}>3:2</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.aspectOption, { backgroundColor: "#34C759" }]} onPress={() => pickImageWithAspect(null)}>
+                    <Text style={styles.aspectText}>Free Style</Text>
+                    </TouchableOpacity>
+                </View>
+                <TouchableOpacity style={styles.modalButton} onPress={() => setShowAspectModal(false)}>
+                    <Text style={styles.modalButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                </View>
+            </View>
+            </Modal>
+
+            {/* Edit Modal */}
+            <Modal visible={showEditModal && !!selectedElement} transparent animationType="slide">
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>Edit Element</Text>
+                        {(() => {
+                            const element = canvasElements.find(e => e.id === selectedElement);
+                            if (!element) return null;
+
+                            if (element.type === "text") {
+                                return (
+                                    <>
+                                        <TextInput
+                                            style={styles.textInput}
+                                            value={element.text}
+                                            onChangeText={(text) =>
+                                                setCanvasElements((prev) =>
+                                                    prev.map((el) =>
+                                                        el.id === element.id ? { ...el, text } : el
+                                                    )
+                                                )
+                                            }
+                                            placeholder="Edit text..."
+                                            multiline
+                                        />
+                                        <Text style={{ fontWeight: "600", marginBottom: 6 }}>Text Color:</Text>
+                                        <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 10 }}>
+                                            {["#000000", "#FF3B30", "#007AFF", "#34C759", "#FF9500"].map((color) => (
+                                                <TouchableOpacity
+                                                    key={color}
+                                                    onPress={() =>
+                                                        setCanvasElements((prev) =>
+                                                            prev.map((el) =>
+                                                                el.id === element.id ? { ...el, color } : el
+                                                            )
+                                                        )
+                                                    }
+                                                    style={{
+                                                        backgroundColor: color,
+                                                        width: 30,
+                                                        height: 30,
+                                                        borderRadius: 15,
+                                                        borderWidth: 2,
+                                                        borderColor: element.color === color ? "#444" : "#ccc",
+                                                    }}
+                                                />
+                                            ))}
+                                        </View>
+                                    </>
+                                );
+                            }
+
+                            if (element.type === "shape") {
+                                return (
+                                    <>
+                                        <Text style={{ fontWeight: "600", marginBottom: 6 }}>Shape Color:</Text>
+                                        <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 10 }}>
+                                            {["#007AFF", "#34C759", "#FF9500", "#FF2D55", "#5856D6"].map((color) => (
+                                                <TouchableOpacity
+                                                    key={color}
+                                                    onPress={() =>
+                                                        setCanvasElements((prev) =>
+                                                            prev.map((el) =>
+                                                                el.id === element.id ? { ...el, shapeColor: color } : el
+                                                            )
+                                                        )
+                                                    }
+                                                    style={{
+                                                        backgroundColor: color,
+                                                        width: 30,
+                                                        height: 30,
+                                                        borderRadius: 15,
+                                                        borderWidth: 2,
+                                                        borderColor: element.shapeColor === color ? "#444" : "#ccc",
+                                                    }}
+                                                />
+                                            ))}
+                                        </View>
+                                    </>
+                                );
+                            }
+
+                            return <Text>No editable properties available for this type.</Text>;
+                        })()}
+
+                        <View style={styles.modalButtons}>
+                            <TouchableOpacity style={styles.modalButton} onPress={() => setShowEditModal(false)}>
+                                <Text style={styles.modalButtonText}>Close</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
 
             {/* Shape Selection Modal */}
             <Modal visible={showShapeModal} transparent animationType="slide">
@@ -324,11 +598,13 @@ function DraggableElement({
     isSelected,
     onSelect,
     onUpdate,
+    onShowEdit,
 }: {
     element: CanvasElement
     isSelected: boolean
     onSelect: () => void
     onUpdate: (updates: Partial<CanvasElement>) => void
+    onShowEdit: () => void
 }) {
     const translateX = useSharedValue(element.x)
     const translateY = useSharedValue(element.y)
@@ -337,7 +613,9 @@ function DraggableElement({
     const panGesture = Gesture.Pan()
         .onBegin(() => {
             runOnJS(onSelect)()
+            runOnJS(onShowEdit)() 
         })
+
         .onUpdate((event) => {
             translateX.value = event.translationX + element.x
             translateY.value = event.translationY + element.y
@@ -352,7 +630,9 @@ function DraggableElement({
     const pinchGesture = Gesture.Pinch()
         .onBegin(() => {
             runOnJS(onSelect)()
+            runOnJS(onShowEdit)()
         })
+
         .onUpdate((event) => {
             scale.value = (element.scale || 1) * event.scale
         })
@@ -370,10 +650,25 @@ function DraggableElement({
 
     const renderElement = () => {
         switch (element.type) {
-            case "text":
-                return (
-                    <Text style={[styles.canvasText, { fontSize: element.fontSize, color: element.color }]}>{element.text}</Text>
-                )
+        case "text":
+            return (
+                <Text
+                    style={[
+                        styles.canvasText,
+                        {
+                            fontSize: element.fontSize,
+                            color: element.color,
+                            fontWeight: element.fontWeight as any,
+                            fontStyle: element.fontStyle as any,
+                            textAlign: element.textAlign as any,
+                            fontFamily: element.fontFamily,
+                        },
+                    ]}
+                >
+                    {element.text}
+                </Text>
+            );
+
             case "image":
                 return (
                     <Image
@@ -758,4 +1053,80 @@ const styles = StyleSheet.create({
         color: "#333",
         fontWeight: "500",
     },
+    footer: {
+    backgroundColor: "#f5f5f5",
+    paddingVertical: 10,
+    alignItems: "center",
+    borderTopWidth: 1,
+    borderColor: "#e0e0e0",
+    },
+    footerText: {
+    fontSize: 12,
+    color: "#999999",
+    },
+    aspectGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-around",
+    marginVertical: 10,
+    },
+    aspectOption: {
+    backgroundColor: "#007AFF",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginBottom: 10,
+    },
+    aspectText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+    },
+    textStyleButton: {
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        borderRadius: 6,
+        borderWidth: 1,
+        borderColor: "#ccc",
+        backgroundColor: "#f5f5f5",
+    },
+    textStyleButtonActive: {
+        backgroundColor: "#007AFF",
+        borderColor: "#007AFF",
+    },
+    textStyleText: {
+        fontWeight: "600",
+        color: "#333",
+    },
+    toggleButton: {
+        paddingVertical: 6,
+        paddingHorizontal: 14,
+        borderRadius: 6,
+        backgroundColor: "#f0f0f0",
+        borderWidth: 1,
+        borderColor: "#ccc",
+        marginRight: 8,
+    },
+    toggleButtonActive: {
+        backgroundColor: "#007AFF",
+        borderColor: "#007AFF",
+    },
+    toggleButtonText: {
+        fontWeight: "bold",
+        color: "#333",
+        fontSize: 16,
+    },
+
+    fontFamilyButton: {
+        backgroundColor: "#e0e0e0",
+        paddingVertical: 6,
+        paddingHorizontal: 10,
+        borderRadius: 6,
+        marginRight: 8,
+    },
+    fontFamilyButtonActive: {
+        backgroundColor: "#007AFF",
+    },
+
+
 });
